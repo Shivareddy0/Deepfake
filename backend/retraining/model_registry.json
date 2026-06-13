@@ -1,0 +1,86 @@
+{
+    "models": {
+        "FrequencyDomainAnalyzer": {
+            "active_version": "v2.1.0",
+            "history": [
+                {
+                    "version": "v2.0.0",
+                    "accuracy": 0.94,
+                    "auc": 0.95,
+                    "fpr": 0.02,
+                    "status": "retired",
+                    "timestamp": "2026-04-12T00:00:00Z"
+                },
+                {
+                    "version": "v2.1.0",
+                    "accuracy": 0.92,
+                    "auc": 0.93,
+                    "fpr": 0.03,
+                    "status": "active",
+                    "timestamp": "2026-05-12T00:00:00Z"
+                }
+            ]
+        },
+        "SpatialCNNDetector": {
+            "active_version": "v4.3.0",
+            "history": [
+                {
+                    "version": "v4.2.0",
+                    "accuracy": 0.95,
+                    "auc": 0.96,
+                    "fpr": 0.015,
+                    "status": "retired",
+                    "timestamp": "2026-04-15T00:00:00Z"
+                },
+                {
+                    "version": "v4.3.0",
+                    "accuracy": 0.93,
+                    "auc": 0.94,
+                    "fpr": 0.022,
+                    "status": "active",
+                    "timestamp": "2026-05-15T00:00:00Z"
+                }
+            ]
+        },
+        "TemporalCoherenceAnalyzer": {
+            "active_version": "v1.8.0",
+            "history": [
+                {
+                    "version": "v1.8.0",
+                    "accuracy": 0.91,
+                    "auc": 0.925,
+                    "fpr": 0.04,
+                    "status": "active",
+                    "timestamp": "2026-05-20T00:00:00Z"
+                }
+            ]
+        },
+        "AudioDeepfakeDetector": {
+            "active_version": "v3.0.0",
+            "history": [
+                {
+                    "version": "v3.0.0",
+                    "accuracy": 0.94,
+                    "auc": 0.96,
+                    "fpr": 0.01,
+                    "status": "active",
+                    "timestamp": "2026-05-25T00:00:00Z"
+                }
+            ]
+        },
+        "MetadataForensicModule": {
+            "active_version": "v1.0.0",
+            "history": [
+                {
+                    "version": "v1.0.0",
+                    "accuracy": 0.98,
+                    "auc": 0.99,
+                    "fpr": 0.005,
+                    "status": "active",
+                    "timestamp": "2026-05-01T00:00:00Z"
+                }
+            ]
+        }
+    },
+    "alerts_triggered": []
+}

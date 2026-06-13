@@ -6,7 +6,9 @@ from typing import Dict, Any, List
 import numpy as np
 
 class ModelRegistryMonitor:
-    def __init__(self, registry_file: str = "d:\\shiva reddy project\\backend\\retraining\\model_registry.json"):
+    def __init__(self, registry_file: str = ""):
+        if not registry_file:
+            registry_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "model_registry.json"))
         self.registry_file = registry_file
         self._init_registry()
 

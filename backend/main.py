@@ -46,7 +46,7 @@ app.add_middleware(
 )
 
 # Workspace path setup for temporary files
-TEMP_DIR = "d:\\shiva reddy project\\backend\\temp_media"
+TEMP_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "temp_media"))
 os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Initialize engines

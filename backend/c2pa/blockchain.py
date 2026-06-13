@@ -5,7 +5,9 @@ import time
 from typing import Dict, Any, Optional
 
 class BlockchainAnchorManager:
-    def __init__(self, ledger_file: str = "d:\\shiva reddy project\\backend\\c2pa\\simulated_ledger.json"):
+    def __init__(self, ledger_file: str = ""):
+        if not ledger_file:
+            ledger_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "simulated_ledger.json"))
         self.ledger_file = ledger_file
         self._init_ledger()
 

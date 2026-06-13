@@ -117,7 +117,7 @@ export default function BatchProcessing() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!urlsInput.trim()) return;
 
@@ -134,8 +134,10 @@ export default function BatchProcessing() {
     // Start first file as processing
     newJobFiles[0].status = 'processing';
 
+    const jobId = `BATCH-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
     const newJob: BatchJob = {
-      id: `BATCH-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: jobId,
       priority,
       webhookUrl: webhookUrl || 'No Callback Registered',
       totalFiles: newJobFiles.length,
@@ -145,10 +147,26 @@ export default function BatchProcessing() {
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
     };
 
+    // Optimistically update UI
     setJobs(prev => [newJob, ...prev]);
     setExpandedJobId(newJob.id);
     setUrlsInput('');
     setWebhookUrl('');
+
+    // Fire API call to backend
+    try {
+      await fetch('http://localhost:8000/detect/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          media_urls: lines,
+          priority,
+          webhook_url: webhookUrl || null
+        })
+      });
+    } catch (err) {
+      console.error('Failed to notify backend about batch queueing:', err);
+    }
   };
 
   const handlePause = (jobId: string) => {

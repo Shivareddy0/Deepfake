@@ -99,7 +99,8 @@ export default function ProvenanceViewer() {
                 }
               ]
             };
-          });
+            }
+          }
         }
       } catch (e) {
         console.error('Failed to parse dynamic provenance logs:', e);

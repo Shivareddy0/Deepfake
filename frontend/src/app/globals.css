@@ -1,0 +1,354 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc; /* Slate-50 Light Background */
+  --foreground: #0f172a; /* Slate-900 Light Text */
+  --panel-bg: #ffffff; /* White panel */
+  --border-color: #e2e8f0; /* Slate-200 border */
+  --hover-bg: #f1f5f9; /* Slate-100 hover */
+  --accent-cyan: #2563eb; /* Subdued blue */
+  --accent-rose: #dc2626; /* Subdued red */
+  --accent-emerald: #16a34a; /* Subdued green */
+  --glow-opacity: 0.05;
+  --scrollbar-track: #f8fafc;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --footer-bg: #f8fafc;
+}
+
+.dark {
+  --background: #0b0f17; /* Dark slate background */
+  --foreground: #f8fafc; /* Off-white text */
+  --panel-bg: #0f141c; /* Solid slate panel */
+  --border-color: #1e293b; /* Dark border */
+  --hover-bg: #1e293b; /* Dark hover */
+  --accent-cyan: #0ea5e9; /* Cyber cyan */
+  --accent-rose: #f43f5e; /* Cyber rose */
+  --accent-emerald: #10b981; /* Cyber green */
+  --glow-opacity: 0.15;
+  --scrollbar-track: #0b0f17;
+  --scrollbar-thumb: #1e293b;
+  --scrollbar-thumb-hover: #334155;
+  --footer-bg: rgba(15, 23, 42, 0.2);
+}
+
+@theme {
+  --color-primary-glow: rgba(79, 70, 229, 0.05);
+  --color-success-glow: rgba(16, 185, 129, 0.05);
+  --color-danger-glow: rgba(244, 63, 94, 0.05);
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Global responsive text and theme color mappings */
+body {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--foreground) !important;
+}
+
+p, span.text-slate-400, span.text-slate-500 {
+  color: var(--foreground) !important;
+  opacity: 0.8;
+}
+
+/* Custom styles for professional industrial console panels */
+.glass {
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.glass-card {
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, var(--glow-opacity)), 0 2px 4px -2px rgba(0, 0, 0, var(--glow-opacity)) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: #4f46e5 !important; /* Premium developer indigo border on hover */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03) !important;
+}
+
+.glass-card-danger:hover {
+  border-color: var(--accent-rose) !important;
+}
+
+.glass-card-success:hover {
+  border-color: var(--accent-emerald) !important;
+}
+
+/* Sidebar Nav active highlights */
+.bg-slate-900\/60 {
+  background-color: var(--hover-bg) !important;
+}
+
+/* Table overrides */
+table {
+  background: var(--panel-bg) !important;
+}
+
+th {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  opacity: 0.8;
+}
+
+td {
+  color: var(--foreground) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  opacity: 0.9;
+}
+
+tr:hover {
+  background-color: var(--background) !important;
+}
+
+/* Inputs, dropdowns, and text fields */
+input, select, textarea {
+  background-color: var(--panel-bg) !important;
+  color: var(--foreground) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* SVG Line paths */
+line {
+  stroke: var(--border-color) !important;
+}
+
+/* Custom telemetry box */
+.bg-black\/80 {
+  background-color: var(--panel-bg) !important;
+  border-color: var(--border-color) !important;
+  color: var(--foreground) !important;
+}
+
+.scanline {
+  /* Disabled scanline lines for clean visual performance and legibility */
+  background: transparent;
+}
+
+.glow-text, .glow-text-cyan, .glow-text-emerald, .glow-text-rose {
+  /* Disabled glowing text shadows for crisp, pixel-perfect developer UI typography */
+  text-shadow: none !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb) !important;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+}
+
+.gradient-bg {
+  background-color: var(--background) !important;
+  background-image: none;
+}
+
+/* Subdue neon colors for legibility */
+.text-cyan-400, .text-cyan-500 {
+  color: var(--accent-cyan) !important;
+}
+
+.text-rose-400, .text-rose-500 {
+  color: var(--accent-rose) !important;
+}
+
+.text-emerald-400, .text-emerald-500 {
+  color: var(--accent-emerald) !important;
+}
+
+/* Background overlay highlights */
+.bg-cyan-500\/10 {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+}
+
+.bg-rose-500\/10, .bg-rose-500\/15 {
+  background-color: rgba(220, 38, 38, 0.06) !important;
+}
+
+.bg-emerald-500\/10, .bg-emerald-500\/15 {
+  background-color: rgba(22, 163, 74, 0.06) !important;
+}
+
+/* Sidebar Nav and list hover overrides for light theme compatibility */
+.hover\:bg-slate-900\/30:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+.bg-slate-950\/20 {
+  background-color: var(--footer-bg) !important;
+}
+
+.text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
+.text-slate-400 {
+  color: var(--foreground) !important;
+  opacity: 0.7;
+}
+
+.group:hover .text-slate-400 {
+  color: #4f46e5 !important;
+}
+
+/* Light Theme Overrides (applies only when .light class is active on html) */
+.light {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+.light h1, .light h2, .light h3, .light h4, .light h5, .light h6 {
+  color: #0f172a !important;
+}
+
+.light p, .light span.text-slate-400, .light span.text-slate-500 {
+  color: #475569 !important;
+}
+
+/* Table light mode styling */
+.light table {
+  background: #ffffff !important;
+}
+
+.light th {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.light td {
+  color: #334155 !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.light tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Input elements light mode styling */
+.light input, .light select, .light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* SVG Line paths */
+.light line {
+  stroke: #e2e8f0 !important;
+}
+
+/* Overriding dark background classes under light mode */
+.light .bg-\[\#030712\],
+.light .bg-\[\#0b0f17\],
+.light .bg-\[\#0b0f19\],
+.light .bg-\[\#020617\],
+.light .bg-\[\#0f172a\],
+.light .bg-slate-950,
+.light .bg-black {
+  background-color: #ffffff !important;
+}
+
+.light .bg-slate-900 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Sidebar Nav active highlights */
+.light .bg-slate-900\/60 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Hover list items */
+.light .hover\:bg-slate-900\/30:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.light .bg-slate-950\/20 {
+  background-color: #f8fafc !important;
+}
+
+/* Border overrides */
+.light .border-slate-800,
+.light .border-slate-900,
+.light .border-slate-900\/80,
+.light .border-slate-900\/40 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text overrides */
+.light .text-white, .light .text-slate-100 {
+  color: #0f172a !important;
+}
+
+.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Indicators and badges colors in light mode */
+.light .text-cyan-400, .light .text-cyan-500 {
+  color: #2563eb !important;
+}
+
+.light .text-rose-400, .light .text-rose-500 {
+  color: #dc2626 !important;
+}
+
+.light .text-emerald-400, .light .text-emerald-500 {
+  color: #16a34a !important;
+}
+
+.light .bg-cyan-500\/10 {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+}
+
+.light .bg-rose-500\/10, .light .bg-rose-500\/15 {
+  background-color: rgba(220, 38, 38, 0.06) !important;
+}
+
+.light .bg-emerald-500\/10, .light .bg-emerald-500\/15 {
+  background-color: rgba(22, 163, 74, 0.06) !important;
+}
+
+/* Keep button texts white on primary colors */
+.light button.bg-cyan-600,
+.light button.bg-cyan-600 span,
+.light button.bg-cyan-600 svg,
+.light button.bg-rose-600,
+.light button.bg-rose-600 span {
+  color: #ffffff !important;
+}
+
+/* Inactive nav links hover text color */
+.light .group:hover .text-slate-400 {
+  color: #4f46e5 !important;
+}

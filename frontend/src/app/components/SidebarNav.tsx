@@ -5,9 +5,6 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Terminal, 
-  Database, 
-  Fingerprint, 
-  Layers, 
   ShieldAlert,
   Cpu
 } from 'lucide-react';
@@ -15,9 +12,6 @@ import {
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Analyst Workbench', href: '/workbench', icon: Terminal },
-  { name: 'Model Registry Zoo', href: '/model-zoo', icon: Database },
-  { name: 'C2PA Provenance', href: '/provenance', icon: Fingerprint },
-  { name: 'Batch Processing', href: '/batch', icon: Layers },
 ];
 
 export default function SidebarNav() {

@@ -7,9 +7,6 @@ import {
   ShieldCheck, 
   LayoutDashboard, 
   Cpu, 
-  Database, 
-  History, 
-  Layers,
   Sun,
   Moon
 } from 'lucide-react';
@@ -37,9 +34,6 @@ export default function SidebarNav() {
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Analyst Workbench', href: '/workbench', icon: Cpu },
-    { name: 'Model Zoo', href: '/model-zoo', icon: Database },
-    { name: 'C2PA Provenance', href: '/provenance', icon: History },
-    { name: 'Batch Processing', href: '/batch', icon: Layers },
   ];
 
   return (

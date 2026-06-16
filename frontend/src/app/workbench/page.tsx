@@ -35,6 +35,8 @@ function AnalystWorkbenchContent() {
   const [isWebcamActive, setIsWebcamActive] = useState<boolean>(false);
   const [isMicActive, setIsMicActive] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [mediaPreviews, setMediaPreviews] = useState<Record<string, string>>({});
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   
   // Fourier visualizer Pan/Zoom State
   const [zoom, setZoom] = useState<number>(1);
@@ -44,10 +46,11 @@ function AnalystWorkbenchContent() {
   const fftCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // References for WebRTC sensors
+  // References for WebRTC sensors and media previews
   const streamRef = useRef<MediaStream | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const requestRef = useRef<number | null>(null);
@@ -83,12 +86,14 @@ function AnalystWorkbenchContent() {
 
   const mediaData = activeMedia ? mediaList[activeMedia] : null;
 
-  // Initialize hidden video decoder and cleanup WebRTC streams
+  // Initialize hidden video/audio decoders and cleanup WebRTC streams
   useEffect(() => {
     videoRef.current = document.createElement('video');
     videoRef.current.autoplay = true;
     videoRef.current.playsInline = true;
     videoRef.current.muted = true;
+
+    audioRef.current = document.createElement('audio');
 
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -101,8 +106,111 @@ function AnalystWorkbenchContent() {
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, []);
+
+  // Load preview media (images, videos, and audio) when activeMedia changes
+  useEffect(() => {
+    if (!activeMedia) {
+      setLoadedImage(null);
+      if (videoRef.current) {
+        videoRef.current.src = '';
+        videoRef.current.srcObject = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.src = '';
+      }
+      return;
+    }
+
+    const previewUrl = mediaPreviews[activeMedia];
+    const media = mediaList[activeMedia];
+
+    if (!media) return;
+
+    // Stop any active hardware inputs or other audio sources
+    if (media.type !== 'audio' && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+
+    if (media.type === 'image') {
+      if (previewUrl) {
+        const img = new Image();
+        img.src = previewUrl;
+        img.onload = () => setLoadedImage(img);
+        img.onerror = () => setLoadedImage(null);
+      } else {
+        setLoadedImage(null);
+      }
+      if (videoRef.current) {
+        videoRef.current.src = '';
+        videoRef.current.srcObject = null;
+      }
+    } else if (media.type === 'video') {
+      setLoadedImage(null);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        if (previewUrl) {
+          videoRef.current.src = previewUrl;
+          videoRef.current.loop = true;
+          videoRef.current.load();
+          if (isPlaying) {
+            videoRef.current.play().catch(e => console.log('video autoplay blocked:', e));
+          } else {
+            videoRef.current.pause();
+          }
+        } else {
+          videoRef.current.src = '';
+        }
+      }
+    } else if (media.type === 'audio') {
+      setLoadedImage(null);
+      if (videoRef.current) {
+        videoRef.current.src = '';
+        videoRef.current.srcObject = null;
+      }
+      if (audioRef.current) {
+        if (previewUrl) {
+          audioRef.current.src = previewUrl;
+          audioRef.current.loop = true;
+          audioRef.current.load();
+          if (isPlaying) {
+            audioRef.current.play().catch(e => console.log('audio autoplay blocked:', e));
+          } else {
+            audioRef.current.pause();
+          }
+        } else {
+          audioRef.current.src = '';
+        }
+      }
+    }
+  }, [activeMedia, mediaPreviews, mediaList]);
+
+  // Sync play/pause changes with underlying video/audio elements
+  useEffect(() => {
+    if (!activeMedia) return;
+    const media = mediaList[activeMedia];
+    if (!media) return;
+
+    if (media.type === 'video' && videoRef.current && videoRef.current.src) {
+      if (isPlaying) {
+        videoRef.current.play().catch(e => console.log('video play blocked:', e));
+      } else {
+        videoRef.current.pause();
+      }
+    } else if (media.type === 'audio' && audioRef.current && audioRef.current.src) {
+      if (isPlaying) {
+        audioRef.current.play().catch(e => console.log('audio play blocked:', e));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying, activeMedia, mediaList]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -171,6 +279,10 @@ function AnalystWorkbenchContent() {
       // Shut down active hardware streams if uploading files
       if (isWebcamActive) toggleWebcam();
       if (isMicActive) toggleMicrophone();
+
+      // Generate Object URL for media preview
+      const previewUrl = URL.createObjectURL(file);
+      setMediaPreviews(prev => ({ ...prev, [file.name]: previewUrl }));
 
       // Update state and localStorage
       setMediaList(prev => {
@@ -511,16 +623,27 @@ AetherShield Platform Signature: CA_CERT_OK
       ctx.fillText(`RMS VOLUME: ${averageVolume.toFixed(1)}dB`, 15, 55);
 
     } else if (mediaData) {
-      // 3. Fallback to normal media files rendering
+      // 3. Render uploaded media file previews
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(canvas.width / 2, 0); ctx.lineTo(canvas.width / 2, canvas.height);
-      ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2);
-      ctx.stroke();
+      if (mediaData.type === 'image' && loadedImage) {
+        const scale = Math.min(canvas.width / loadedImage.width, canvas.height / loadedImage.height);
+        const w = loadedImage.width * scale;
+        const h = loadedImage.height * scale;
+        const x = (canvas.width - w) / 2;
+        const y = (canvas.height - h) / 2;
+        ctx.drawImage(loadedImage, x, y, w, h);
+      } else if (mediaData.type === 'video' && videoRef.current && videoRef.current.src && videoRef.current.readyState >= 2) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.strokeStyle = 'rgba(51, 65, 85, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0); ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.moveTo(0, canvas.height / 2); ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+      }
 
       if (mediaData.type === 'video' || mediaData.type === 'image') {
         const cx = canvas.width / 2 + Math.sin(frameIndex * 0.1) * 10;
@@ -631,7 +754,7 @@ AetherShield Platform Signature: CA_CERT_OK
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [isWebcamActive, isMicActive, mediaData, frameIndex, showGradCam, showLandmarks, isPlaying]);
+  }, [isWebcamActive, isMicActive, mediaData, frameIndex, showGradCam, showLandmarks, isPlaying, loadedImage]);
 
   // Draw 2D DFT Fourier spectrum on small canvas
   useEffect(() => {
@@ -717,16 +840,41 @@ AetherShield Platform Signature: CA_CERT_OK
     ctx.restore();
   }, [activeMedia, mediaData, zoom, pan]);
 
-  // Frame scrubbing simulation
+  const handleSliderChange = (val: number) => {
+    setFrameIndex(val);
+    if (activeMedia && mediaList[activeMedia]) {
+      const type = mediaList[activeMedia].type;
+      if (type === 'video' && videoRef.current && videoRef.current.duration) {
+        videoRef.current.currentTime = (val / 100) * videoRef.current.duration;
+      } else if (type === 'audio' && audioRef.current && audioRef.current.duration) {
+        audioRef.current.currentTime = (val / 100) * audioRef.current.duration;
+      }
+    }
+  };
+
+  // Frame scrubbing simulation & media element sync
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isPlaying) {
       interval = setInterval(() => {
-        setFrameIndex(prev => (prev + 1) % 100);
+        if (activeMedia && mediaList[activeMedia]) {
+          const type = mediaList[activeMedia].type;
+          if (type === 'video' && videoRef.current && videoRef.current.duration) {
+            const frame = Math.floor((videoRef.current.currentTime / videoRef.current.duration) * 100) || 0;
+            setFrameIndex(frame);
+          } else if (type === 'audio' && audioRef.current && audioRef.current.duration) {
+            const frame = Math.floor((audioRef.current.currentTime / audioRef.current.duration) * 100) || 0;
+            setFrameIndex(frame);
+          } else {
+            setFrameIndex(prev => (prev + 1) % 100);
+          }
+        } else {
+          setFrameIndex(prev => (prev + 1) % 100);
+        }
       }, 100);
     }
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, activeMedia, mediaList]);
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto w-full">
@@ -794,7 +942,7 @@ AetherShield Platform Signature: CA_CERT_OK
                       min="0" 
                       max="99" 
                       value={frameIndex} 
-                      onChange={(e) => setFrameIndex(parseInt(e.target.value))}
+                      onChange={(e) => handleSliderChange(parseInt(e.target.value))}
                       className="w-full accent-cyan-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer"
                     />
                   </div>

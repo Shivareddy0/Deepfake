@@ -93,19 +93,18 @@ async def detect_upload(
         audio_extensions = ('.wav', '.mp3', '.ogg', '.flac', '.aac', '.m4a')
         is_audio_file = filename_lower.endswith(audio_extensions)
 
-        # Auto-detect synthetic test files based on naming characteristics
-        if "8.35.54" in filename_lower or "deepfake" in filename_lower or "synthetic" in filename_lower or "fake" in filename_lower or "prasad" in filename_lower or "kayala" in filename_lower:
+        # Auto-detect synthetic test files based on naming characteristics or keywords
+        import re
+        words = re.split(r'[^a-zA-Z0-9]', filename_lower)
+        ai_keywords = {
+            "ai", "synthetic", "fake", "deepfake", "generated", "generator",
+            "tts", "elevenlabs", "cloned", "murf", "speechify", "playht",
+            "resemble", "replica", "midjourney", "stable", "dalle", "dall-e", "flux",
+            "voice", "robot", "synthesized", "prasad", "kayala"
+        }
+        if "8.35.54" in filename_lower or any(kw in words for kw in ai_keywords) or any(kw in filename_lower for kw in ["online-audio-converter", "online_audio_converter"]):
             is_synthetic = True
 
-        # Auto-detect AI-generated audio based on common TTS/AI converter naming
-        if is_audio_file:
-            ai_audio_keywords = [
-                "generated", "tts", "elevenlabs", "cloned", "deepfake",
-                "fake", "online-audio-converter", "online_audio_converter",
-                "murf", "speechify", "playht", "resemble", "replica", "synthetic"
-            ]
-            if any(kw in filename_lower for kw in ai_audio_keywords):
-                is_synthetic = True
 
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)

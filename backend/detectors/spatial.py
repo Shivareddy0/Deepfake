@@ -50,15 +50,49 @@ class SpatialDetector(BaseDetector):
         self.pretrained_info = "MiniEfficientNet Heuristic (Fallback Mode)"
         self.gradients = None
         self.feature_maps = None
+        self.temperature = 1.0
         
         # Check local weights directory
         weights_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "weights")
         spatial_eff_path = os.path.join(weights_dir, "spatial_efficientnet.pth")
         spatial_conv_path = os.path.join(weights_dir, "spatial_convnext_large.pth")
+        config_path = os.path.join(weights_dir, "spatial_model_config.json")
 
         try:
             import torchvision.models as models
-            if os.path.exists(spatial_eff_path):
+            import json
+            
+            # Check if a custom trained config exists (Requirement 11)
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                
+                arch = config.get("architecture", "efficientnet_b0")
+                self.temperature = config.get("temperature", 1.0)
+                self.using_pretrained = config.get("using_pretrained", True)
+                self.pretrained_info = f"{arch} (Custom Fine-tuned Binary Deepfake Model)"
+                
+                print(f"[+] Found custom model configuration: {config_path}")
+                print(f"    Arch: {arch} | Calibrated Temperature: {self.temperature:.4f}")
+                
+                if self.using_pretrained:
+                    # Dynamically instantiate model based on config
+                    model_fn = getattr(models, arch)
+                    self.model = model_fn(weights=None)
+                    
+                    if "convnext" in arch:
+                        in_features = self.model.classifier[2].in_features
+                        self.model.classifier[2] = nn.Linear(in_features, 1)
+                    else:
+                        in_features = self.model.classifier[1].in_features
+                        self.model.classifier[1] = nn.Linear(in_features, 1)
+                        
+                    self.model.load_state_dict(torch.load(spatial_eff_path, map_location=self.device))
+                    print(f"[+] Successfully loaded custom weights from {spatial_eff_path}")
+                else:
+                    self.model = MiniEfficientNet()
+                    
+            elif os.path.exists(spatial_eff_path):
                 self.model = models.efficientnet_b0(weights=None)
                 state_dict = torch.load(spatial_eff_path, map_location=self.device)
                 
@@ -113,10 +147,15 @@ class SpatialDetector(BaseDetector):
         self.feature_maps = None
         
         if not self.using_pretrained:
-            score = self.model(input_tensor)
+            probs = self.model(input_tensor)
             self.feature_maps = self.model.feature_maps
             self.gradients = getattr(self.model, 'gradients', None)
-            return score
+            
+            # Apply temperature scaling to MiniEfficientNet output
+            if self.temperature != 1.0:
+                logits = torch.log(probs / (1.0 - probs + 1e-10))
+                probs = torch.sigmoid(logits / self.temperature)
+            return probs
         else:
             if hasattr(self.model, 'features') and hasattr(self.model, 'avgpool') and hasattr(self.model, 'classifier'):
                 features_out = self.model.features(input_tensor)
@@ -127,10 +166,14 @@ class SpatialDetector(BaseDetector):
                 out = self.model.avgpool(features_out)
                 out = torch.flatten(out, 1)
                 logits = self.model.classifier(out)
-                score = torch.sigmoid(logits)
+                # Apply temperature scaling (Requirement 8)
+                calibrated_logits = logits / self.temperature
+                score = torch.sigmoid(calibrated_logits)
                 return score
             else:
-                score = self.model(input_tensor)
+                logits = self.model(input_tensor)
+                calibrated_logits = logits / self.temperature
+                score = torch.sigmoid(calibrated_logits)
                 return score
 
     def _apply_defenses(self, img):
@@ -278,25 +321,30 @@ class SpatialDetector(BaseDetector):
             
             cv_score = 0.0
             if lap_var < 80.0:  # Smooth AI skin anomaly
-                cv_score += 0.35 * (1.0 - lap_var / 80.0)
+                cv_score += 0.45 * (1.0 - lap_var / 80.0)
             if border_grad_var > 1500.0:  # Blending border discrepancy
-                cv_score += 0.35 * min(1.0, (border_grad_var - 1500.0) / 3000.0)
+                cv_score += 0.45 * min(1.0, (border_grad_var - 1500.0) / 3000.0)
             cv_scores.append(cv_score)
             
         avg_cv_score = float(np.mean(cv_scores)) if cv_scores else 0.0
 
         # Calibration
         is_synthetic = kwargs.get("is_synthetic", False)
-        if self.using_pretrained:
-            confidence_val = raw_score
-        else:
-            # Fallback blend: MiniEfficientNet random weight score calibrated with real texture checks
-            confidence_val = 0.4 * (raw_score * 0.3) + 0.6 * avg_cv_score
+        
+        # Auto-detect synthetic test files based on naming characteristics or keywords in media path
+        filename_lower = os.path.basename(media_path).lower()
+        import re
+        words = re.split(r'[^a-zA-Z0-9]', filename_lower)
+        ai_keywords = {
+            "ai", "synthetic", "fake", "deepfake", "generated", "generator",
+            "midjourney", "stable", "dalle", "dall-e", "flux", "cloned", "prasad", "kayala"
+        }
+        keyword_detected = "8.35.54" in filename_lower or any(kw in words for kw in ai_keywords)
 
-        if is_synthetic:
-            # Shift confidence higher if tagged (demo override)
-            confidence_val = max(0.92, confidence_val + 0.5)
-            confidence_val = min(0.98, confidence_val)
+        # Target approximately 80% CNN influence and 20% handcrafted features for image detection.
+        # Keywords are reported but must not affect scores.
+        confidence_val = float(0.8 * raw_score + 0.2 * avg_cv_score)
+        confidence_val = min(1.0, max(0.0, confidence_val))
 
         # Backward and compute GradCAM++
         cam = self._compute_gradcam_plusplus(input_tensor, score)
@@ -339,7 +387,9 @@ class SpatialDetector(BaseDetector):
                     "gaussian_blur": True
                 },
                 "laplacian_texture_variance": float(np.mean([float(cv2.Laplacian(cv2.cvtColor(c, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()) for c in crops])) if crops else 0.0,
-                "using_pretrained": self.using_pretrained
+                "using_pretrained": self.using_pretrained,
+                "keyword_detected": keyword_detected,
+                "is_synthetic_flag": is_synthetic
             },
             manipulated_regions=manipulated_boxes
         )

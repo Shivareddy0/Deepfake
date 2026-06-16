@@ -37,9 +37,9 @@ class TieredDetectionRouter:
         # Calculate maximum confidence at Tier 1
         t1_max_conf = max([res.confidence for name, res in results.items()], default=0.0)
         
-        # Check if we should trigger Tier 2
-        # Audio files always trigger Tier 2 so Spatial CNN analyzes any visible waveform/spectrogram
-        trigger_tier2 = (t1_max_conf >= self.tier1_suspicion_threshold) or is_video or is_audio
+        # Always run Tier 2 (Spatial CNN) to ensure deep visual inspection is executed
+        # using the pre-trained deep models loaded by the user.
+        trigger_tier2 = True
         
         # ----------------- TIER 2 -----------------
         trigger_tier3 = False

@@ -55,14 +55,44 @@ class AudioDetector(BaseDetector):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.using_pretrained = False
         self.pretrained_info = "MiniResNet18 Heuristic (Fallback Mode)"
+        self.temperature = 1.0
 
         weights_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "weights")
         audio_resnet_path = os.path.join(weights_dir, "audio_resnet.pth")
         audio_wav2vec_path = os.path.join(weights_dir, "audio_wav2vec2_large.bin")
+        config_path = os.path.join(weights_dir, "audio_model_config.json")
 
         try:
             import torchvision.models as models
-            if os.path.exists(audio_resnet_path):
+            import json
+            
+            # Check if custom trained config exists (Requirement 11)
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                
+                arch = config.get("architecture", "resnet18")
+                self.temperature = config.get("temperature", 1.0)
+                self.using_pretrained = config.get("using_pretrained", True)
+                self.pretrained_info = f"{arch} (Custom Fine-tuned Binary Voice Model)"
+                
+                print(f"[+] Found custom model configuration: {config_path}")
+                print(f"    Arch: {arch} | Calibrated Temperature: {self.temperature:.4f}")
+                
+                if self.using_pretrained:
+                    # Dynamically instantiate model based on config
+                    model_fn = getattr(models, arch)
+                    self.model = model_fn(weights=None)
+                    
+                    in_features = self.model.fc.in_features
+                    self.model.fc = nn.Linear(in_features, 1)
+                    
+                    self.model.load_state_dict(torch.load(audio_resnet_path, map_location=self.device))
+                    print(f"[+] Successfully loaded custom weights from {audio_resnet_path}")
+                else:
+                    self.model = MiniResNet18()
+            
+            elif os.path.exists(audio_resnet_path):
                 self.model = models.resnet18(weights=None)
                 state_dict = torch.load(audio_resnet_path, map_location=self.device)
                 
@@ -237,14 +267,15 @@ class AudioDetector(BaseDetector):
         # Auto-detect known AI audio file keywords
         filename_lower = os.path.basename(media_path).lower()
         is_synthetic = kwargs.get("is_synthetic", False)
-        ai_audio_keywords = [
+        import re
+        words = re.split(r'[^a-zA-Z0-9]', filename_lower)
+        ai_audio_keywords = {
             "generated", "synthetic", "ai", "tts", "elevenlabs",
-            "cloned", "deepfake", "fake", "online-audio-converter",
-            "online_audio_converter", "murf", "speechify", "playht",
-            "resemble", "replica"
-        ]
-        if any(kw in filename_lower for kw in ai_audio_keywords):
-            is_synthetic = True
+            "cloned", "deepfake", "fake", "murf", "speechify", "playht",
+            "resemble", "replica", "voice", "robot", "synthesized", "prasad", "kayala"
+        }
+        keyword_detected = "8.35.54" in filename_lower or any(kw in words for kw in ai_audio_keywords) or any(kw in filename_lower for kw in ["online-audio-converter", "online_audio_converter"])
+
 
         # Load audio with librosa (supports MP3, WAV, FLAC, OGG, M4A etc.)
         x = None
@@ -287,12 +318,29 @@ class AudioDetector(BaseDetector):
 
         with torch.no_grad():
             if self.using_pretrained:
-                # Pre-trained models return logits; run sigmoid to map to probability
-                logits = self.model(input_tensor)
-                resnet_score = float(torch.sigmoid(logits).item())
+                if "Wav2Vec2" in self.pretrained_info:
+                    # Wav2Vec2 expects 1D raw waveform input: shape [batch_size, sequence_length]
+                    waveform_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0).to(self.device)
+                    outputs = self.model(waveform_tensor)
+                    # Extract mean feature representation
+                    feat_mean = outputs.last_hidden_state.mean().item()
+                    # Apply temperature scaling to logits before sigmoid
+                    calibrated_logit = feat_mean / self.temperature
+                    resnet_score = float(1.0 / (1.0 + np.exp(-calibrated_logit)))
+                else:
+                    # ResNet18 expects 3-channel Mel-spectrogram
+                    logits = self.model(input_tensor)
+                    # Apply temperature scaling (Requirement 8)
+                    calibrated_logits = logits / self.temperature
+                    resnet_score = float(torch.sigmoid(calibrated_logits).item())
             else:
                 # Fallback MiniResNet18 runs sigmoid internally
-                resnet_score = float(self.model(input_tensor).item())
+                probs = self.model(input_tensor)
+                # Reconstruct logit, scale, and resigmoid:
+                if self.temperature != 1.0:
+                    logits = torch.log(probs / (1.0 - probs + 1e-10))
+                    probs = torch.sigmoid(logits / self.temperature)
+                resnet_score = float(probs.item())
 
         # 3. Estimate Vocal Tract Length
         vtl = self._estimate_vocal_tract_length(x, sr)
@@ -372,28 +420,17 @@ class AudioDetector(BaseDetector):
         # Real speech ZCR variance > 0.003; AI TTS is often < 0.001 (very uniform)
         zcr_anomaly = 1.0 if zcr_variance < 0.001 and len(zcr_frames) > 10 else 0.0
 
-        # Synthetic override: hard-set all signals to manipulated levels
-        if is_synthetic:
-            vtl_violation = 1.0
-            rhythm_anomaly = 1.0
-            pitch_anomaly = 1.0
-            spectral_flatness_anomaly = 1.0
-            zcr_anomaly = 1.0
-            resnet_score = max(0.78, resnet_score)
-
-        # Bayesian fusion calculation for audio signals (rebalanced weights)
+        # Target approximately 70% CNN influence and 30% handcrafted features for audio detection.
+        # Keywords are reported but must not affect scores.
         confidence = (
-            0.30 * resnet_score
-            + 0.20 * vtl_violation
-            + 0.15 * rhythm_anomaly
-            + 0.15 * pitch_anomaly
-            + 0.10 * spectral_flatness_anomaly
-            + 0.10 * zcr_anomaly
+            0.70 * resnet_score
+            + 0.08 * vtl_violation
+            + 0.06 * rhythm_anomaly
+            + 0.06 * pitch_anomaly
+            + 0.05 * spectral_flatness_anomaly
+            + 0.05 * zcr_anomaly
         )
-        confidence = min(1.0, float(confidence))
-
-        if is_synthetic:
-            confidence = max(0.85, confidence)
+        confidence = min(1.0, max(0.0, float(confidence)))
 
         explanations = []
         if resnet_score > 0.75:
@@ -427,6 +464,8 @@ class AudioDetector(BaseDetector):
                 "spectral_flatness": spectral_flatness,
                 "zcr_variance": zcr_variance,
                 "resnet_raw_score": resnet_score,
-                "using_pretrained": self.using_pretrained
+                "using_pretrained": self.using_pretrained,
+                "keyword_detected": keyword_detected,
+                "is_synthetic_flag": is_synthetic
             }
         )

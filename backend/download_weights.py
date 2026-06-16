@@ -68,13 +68,37 @@ def main():
             print(f"[+] Downloading {filename}...")
             print(f"    Source: {url}")
             try:
-                urllib.request.urlretrieve(url, dest_path, download_progress)
+                req = urllib.request.Request(
+                    url,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
+                )
+                with urllib.request.urlopen(req) as response:
+                    total_size = int(response.info().get('Content-Length', 0))
+                    block_size = 1024 * 8
+                    read_so_far = 0
+                    with open(dest_path, 'wb') as out_file:
+                        while True:
+                            buffer = response.read(block_size)
+                            if not buffer:
+                                break
+                            read_so_far += len(buffer)
+                            out_file.write(buffer)
+                            # Update progress
+                            if total_size > 0:
+                                percent = min(100.0, read_so_far * 100 / total_size)
+                                sys.stdout.write(f"\rDownloading... {percent:.1f}% ({read_so_far / (1024*1024):.1f} MB / {total_size / (1024*1024):.1f} MB)")
+                            else:
+                                sys.stdout.write(f"\rDownloading... {read_so_far / (1024*1024):.1f} MB")
+                            sys.stdout.flush()
                 print(f"\n[✓] Successfully downloaded {filename}!")
             except Exception as e:
                 print(f"\n[✗] Failed to download {filename}: {e}")
                 # Clean up partial download
                 if os.path.exists(dest_path):
-                    os.remove(dest_path)
+                    try:
+                        os.remove(dest_path)
+                    except Exception:
+                        pass
 
     print("\n==========================================================")
     print("Weights download complete. Place weights directory inside ")

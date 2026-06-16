@@ -35,7 +35,12 @@ function AnalystWorkbenchContent() {
   const [isWebcamActive, setIsWebcamActive] = useState<boolean>(false);
   const [isMicActive, setIsMicActive] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [mediaPreviews, setMediaPreviews] = useState<Record<string, string>>({});
+  const [mediaPreviews, setMediaPreviews] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      return (window as any).mediaPreviews || {};
+    }
+    return {};
+  });
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   
   // Fourier visualizer Pan/Zoom State
@@ -280,8 +285,12 @@ function AnalystWorkbenchContent() {
       if (isWebcamActive) toggleWebcam();
       if (isMicActive) toggleMicrophone();
 
-      // Generate Object URL for media preview
+      // Generate Object URL and cache globally for preview
       const previewUrl = URL.createObjectURL(file);
+      if (typeof window !== 'undefined') {
+        (window as any).mediaPreviews = (window as any).mediaPreviews || {};
+        (window as any).mediaPreviews[file.name] = previewUrl;
+      }
       setMediaPreviews(prev => ({ ...prev, [file.name]: previewUrl }));
 
       // Update state and localStorage
@@ -922,9 +931,41 @@ AetherShield Platform Signature: CA_CERT_OK
                 height={360} 
                 className="w-full h-full object-contain"
               />
+
+              {/* Upload prompt overlay when activeMedia is set but no previewUrl is cached */}
+              {!isWebcamActive && !isMicActive && activeMedia && !mediaPreviews[activeMedia] && (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center cursor-pointer hover:bg-slate-900/95 transition-all border-2 border-dashed border-cyan-500/35 hover:border-cyan-500/70 rounded-lg group"
+                >
+                  <Upload className="h-10 w-10 text-cyan-400 mb-3 group-hover:scale-110 transition-transform animate-pulse" />
+                  <p className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                    Re-upload "{activeMedia}" for Live Preview
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-sm mt-2 leading-relaxed">
+                    This file is from a historical session. Click here to upload the original file to view the image/video/audio preview and enable timeline controls.
+                  </p>
+                </div>
+              )}
+
+              {/* Ingestion prompt overlay when no file is selected */}
+              {!activeMedia && !isWebcamActive && !isMicActive && (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center cursor-pointer hover:bg-slate-900/80 transition-all border-2 border-dashed border-slate-800 hover:border-cyan-500/50 rounded-lg group"
+                >
+                  <Upload className="h-12 w-12 text-slate-500 mb-4 group-hover:text-cyan-400 group-hover:scale-110 transition-all" />
+                  <p className="text-sm font-bold text-white uppercase tracking-wider font-mono group-hover:text-cyan-400 transition-colors">
+                    Upload File for Analysis
+                  </p>
+                  <p className="text-xs text-slate-500 max-w-xs mt-2 leading-relaxed">
+                    Drag and drop or click here to ingest an image, video, or audio file for forensic verification.
+                  </p>
+                </div>
+              )}
               
               {/* Media controls overlay bottom */}
-              {mediaData && !isWebcamActive && !isMicActive && (
+              {mediaData && mediaData.type !== 'image' && !isWebcamActive && !isMicActive && (
                 <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-slate-950/85 backdrop-blur border border-slate-800 px-4 py-2 rounded-lg text-xs font-mono text-slate-300">
                   <div className="flex items-center space-x-4">
                     <button 
@@ -948,7 +989,7 @@ AetherShield Platform Signature: CA_CERT_OK
                   </div>
 
                   <div>
-                    <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#22d3ee' }}>
                       {mediaData.type.toUpperCase()} DECODE
                     </span>
                   </div>

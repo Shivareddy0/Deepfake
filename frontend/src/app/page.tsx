@@ -115,6 +115,13 @@ export default function Dashboard() {
         timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
       };
 
+      // Cache preview URL globally for workbench navigation
+      if (typeof window !== 'undefined') {
+        const previewUrl = URL.createObjectURL(file);
+        (window as any).mediaPreviews = (window as any).mediaPreviews || {};
+        (window as any).mediaPreviews[file.name] = previewUrl;
+      }
+
       setScans(prev => {
         const filtered = prev.filter(s => s.filename !== file.name);
         const updated = [newScan, ...filtered];

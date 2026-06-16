@@ -9,11 +9,11 @@ WEIGHTS_DIR = os.path.join(BASE_DIR, "weights")
 # Model definitions (URLs and local filenames)
 MODELS = {
     "standard": {
-        "spatial_efficientnet.pth": "https://download.pytorch.org/models/efficientnet_b0_rwightman-3dd3cd2a.pth",
+        "spatial_efficientnet.pth": "https://download.pytorch.org/models/efficientnet_b0_rwightman-7f5810bc.pth",
         "audio_resnet.pth": "https://download.pytorch.org/models/resnet18-f37072fd.pth"
     },
     "ultra": {
-        "spatial_convnext_large.pth": "https://download.pytorch.org/models/convnext_large-ea09fe54.pth",
+        "spatial_convnext_large.pth": "https://download.pytorch.org/models/convnext_large-ea097f82.pth",
         "audio_wav2vec2_large.bin": "https://huggingface.co/facebook/wav2vec2-xls-r-300m/resolve/main/pytorch_model.bin"
     }
 }

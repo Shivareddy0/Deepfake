@@ -159,6 +159,14 @@ def train_spatial(args):
     print(f"[*] Initializing dataset from: {args.dataset_dir} (is_dummy={args.dummy})")
     dataset = DeepfakeImageDataset(root_dir=args.dataset_dir, augment=args.augment, is_dummy=args.dummy, num_dummy_samples=args.num_samples)
     
+    if not args.dummy and args.limit_samples > 0:
+        print(f"[*] Limiting dataset to first {args.limit_samples} samples for fast verification run...")
+        reals = [s for s in dataset.samples if s[1] == 0.0]
+        fakes = [s for s in dataset.samples if s[1] == 1.0]
+        half_limit = args.limit_samples // 2
+        dataset.samples = reals[:half_limit] + fakes[:half_limit]
+        print(f"[+] Limited to {len(dataset.samples)} samples ({len(reals[:half_limit])} REAL, {len(fakes[:half_limit])} FAKE).")
+        
     # Calculate dataset statistics and save before training starts
     total_images = len(dataset)
     real_images = sum(1 for _, label in dataset.samples if label == 0.0)
@@ -311,8 +319,13 @@ def train_spatial(args):
         train_loss = 0.0
         correct_train = 0
         total_train = 0
+        train_targets_epoch = []
+        train_probs_epoch = []
+        current_lr = optimizer.param_groups[0]['lr']
         
-        for inputs, targets in train_loader:
+        total_batches = len(train_loader)
+        batch_start_time = time.time()
+        for batch_idx, (inputs, targets) in enumerate(train_loader):
             inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
             
@@ -334,11 +347,33 @@ def train_spatial(args):
             preds = (probs > 0.5).float()
             correct_train += (preds == targets).sum().item()
             total_train += targets.size(0)
+            train_targets_epoch.extend(targets.cpu().numpy().flatten().tolist())
+            train_probs_epoch.extend(probs.float().detach().cpu().numpy().flatten().tolist())
+            
+            is_print_batch = False
+            if batch_idx < 10:
+                is_print_batch = True
+            elif (batch_idx + 1) % 20 == 0 or (batch_idx + 1) == total_batches:
+                is_print_batch = True
+                
+            if is_print_batch:
+                elapsed = time.time() - batch_start_time
+                batches_done = batch_idx + 1
+                batches_remaining = total_batches - batches_done
+                eta_sec = (elapsed / batches_done) * batches_remaining
+                eta_min = eta_sec / 60.0
+                print(f"  [Batch {batches_done}/{total_batches}] | Loss: {loss.item():.4f} | "
+                      f"Speed: {batches_done/elapsed:.2f} batch/s | ETA: {eta_min:.1f}m")
             
         epoch_loss = train_loss / total_train
         epoch_acc = correct_train / total_train
         train_losses.append(epoch_loss)
         
+        try:
+            train_auc = roc_auc_score(train_targets_epoch, train_probs_epoch)
+        except Exception:
+            train_auc = 0.5
+            
         scheduler.step()
         
         # Validation Loop
@@ -348,8 +383,10 @@ def train_spatial(args):
         all_probs = []
         all_logits = []
         
+        total_val_batches = len(val_loader)
+        val_start_time = time.time()
         with torch.no_grad():
-            for inputs, targets in val_loader:
+            for val_batch_idx, (inputs, targets) in enumerate(val_loader):
                 inputs, targets = inputs.to(device), targets.to(device)
                 with torch.amp.autocast(device_type="cuda" if device.type == "cuda" else "cpu", enabled=args.mixed_precision):
                     outputs = model(inputs)
@@ -361,6 +398,19 @@ def train_spatial(args):
                 all_targets.extend(targets.cpu().numpy().flatten().tolist())
                 all_probs.extend(probs.float().cpu().numpy().flatten().tolist())
                 all_logits.extend(logits.float().cpu().numpy().flatten().tolist())
+                
+                is_print_val = False
+                if val_batch_idx < 10:
+                    is_print_val = True
+                elif (val_batch_idx + 1) % 50 == 0 or (val_batch_idx + 1) == total_val_batches:
+                    is_print_val = True
+                    
+                if is_print_val:
+                    elapsed_val = time.time() - val_start_time
+                    val_done = val_batch_idx + 1
+                    val_remaining = total_val_batches - val_done
+                    val_eta_sec = (elapsed_val / val_done) * val_remaining
+                    print(f"  [Val Batch {val_done}/{total_val_batches}] | Loss: {loss.item():.4f} | ETA: {val_eta_sec/60.0:.1f}m")
                 
         val_epoch_loss = val_loss / len(val_dataset)
         val_losses.append(val_epoch_loss)
@@ -381,8 +431,9 @@ def train_spatial(args):
         val_eer, val_threshold = calculate_eer(all_targets, all_probs)
         
         print(f"Epoch {epoch+1}/{args.epochs} | "
-              f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f} | "
-              f"Val Loss: {val_epoch_loss:.4f} Acc: {val_acc:.4f} AUC: {val_auc:.4f} EER: {val_eer:.4f}")
+              f"Train Loss: {epoch_loss:.4f} Train AUC: {train_auc:.4f} | "
+              f"Val Loss: {val_epoch_loss:.4f} Val AUC: {val_auc:.4f} | "
+              f"LR: {current_lr:.6f} EER: {val_eer:.4f}")
 
         if val_auc > best_val_auc:
             best_val_auc = val_auc
@@ -477,6 +528,9 @@ def train_spatial(args):
         "train_f1": train_f1,
         "validation_f1": validation_f1,
         "test_f1": test_f1,
+        "precision": test_prec,
+        "recall": test_rec,
+        "eer": test_eer,
         "model": args.arch,
         "avg_inference_ms": f"{avg_inference_ms:.2f}" if isinstance(avg_inference_ms, float) else str(avg_inference_ms),
         "model_size_mb": f"{model_size_mb:.2f}",
@@ -553,6 +607,7 @@ if __name__ == "__main__":
     parser.add_argument("--mixed_precision", action="store_true", default=True, help="Enable mixed precision training (FP16)")
     parser.add_argument("--patience", type=int, default=5, help="Epoch patience count for early stopping")
     parser.add_argument("--resume", action="store_true", help="Resume training from previous checkpoint")
+    parser.add_argument("--limit_samples", type=int, default=0, help="Limit number of real samples for fast verification run")
     
     args = parser.parse_args()
     train_spatial(args)

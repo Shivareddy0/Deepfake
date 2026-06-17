@@ -164,8 +164,11 @@ class SpatialDetector(BaseDetector):
                     features_out.register_hook(self._save_gradients_hook)
                 
                 out = self.model.avgpool(features_out)
-                out = torch.flatten(out, 1)
-                logits = self.model.classifier(out)
+                if "convnext" in self.pretrained_info.lower():
+                    logits = self.model.classifier(out)
+                else:
+                    out = torch.flatten(out, 1)
+                    logits = self.model.classifier(out)
                 # Apply temperature scaling (Requirement 8)
                 calibrated_logits = logits / self.temperature
                 score = torch.sigmoid(calibrated_logits)

@@ -108,13 +108,24 @@ class TieredDetectionRouter:
             if audio_conf is not None and not audio_conf.evidence.get("skipped", False):
                 fused_prob = float(audio_conf.confidence)
                 epistemic_unc = 0.05
-                human_review = bool(0.4 < fused_prob < 0.7)
+                human_review = bool(0.35 < fused_prob < 0.65)
+                
+                if fused_prob <= 0.35:
+                    verdict = "Real"
+                elif fused_prob <= 0.65:
+                    verdict = "Uncertain"
+                else:
+                    verdict = "Fake"
+                    
                 total_latency_ms = (time.time() - start_time) * 1000.0
                 return {
                     "media_path": media_path,
                     "fused_confidence": fused_prob,
                     "epistemic_uncertainty": epistemic_unc,
                     "requires_human_review": human_review,
+                    "verdict": verdict,
+                    "confidence": fused_prob,
+                    "uncertainty": epistemic_unc,
                     "latency_ms": total_latency_ms,
                     "tiers_executed": active_tiers_executed,
                     "detector_results": {name: res.model_dump() for name, res in results.items()}
@@ -123,6 +134,16 @@ class TieredDetectionRouter:
         # Compute fused consensus score via Bayesian fusion
         fused_prob, epistemic_unc, human_review = self.fusion_engine.fuse_predictions(fused_scores)
         
+        # Override human review based on new confidence zone boundaries
+        human_review = bool(0.35 < fused_prob < 0.65) or human_review
+        
+        if fused_prob <= 0.35:
+            verdict = "Real"
+        elif fused_prob <= 0.65:
+            verdict = "Uncertain"
+        else:
+            verdict = "Fake"
+            
         total_latency_ms = (time.time() - start_time) * 1000.0
         
         # Generate compiled report structure
@@ -131,6 +152,9 @@ class TieredDetectionRouter:
             "fused_confidence": fused_prob,
             "epistemic_uncertainty": epistemic_unc,
             "requires_human_review": human_review,
+            "verdict": verdict,
+            "confidence": fused_prob,
+            "uncertainty": epistemic_unc,
             "latency_ms": total_latency_ms,
             "tiers_executed": active_tiers_executed,
             "detector_results": {name: res.model_dump() for name, res in results.items()}

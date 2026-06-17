@@ -26,15 +26,15 @@ def run_script(script_name, args):
 
 def main():
     parser = argparse.ArgumentParser(description="Antigravity Deepfake Shield Master Training Pipeline")
-    parser.add_argument("--image_dir", type=str, default="data/cifake", help="Path to image dataset (CIFAKE/FaceForensics++/Celeb-DF/DFDC/DiffusionDB)")
+    parser.add_argument("--image_dir", type=str, default="data/images", help="Path to image dataset (CIFAKE/FaceForensics++/Celeb-DF/DFDC/DiffusionDB)")
     parser.add_argument("--audio_dir", type=str, default="data/asvspoof", help="Path to audio dataset (ASVspoof/WaveFake)")
     parser.add_argument("--epochs", type=int, default=3, help="Number of training epochs per model")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--dummy", action="store_true", default=True, help="Force fallback to synthetic dummy dataset training")
+    parser.add_argument("--dummy", action="store_true", help="Force fallback to synthetic dummy dataset training")
     parser.add_argument("--num_samples", type=int, default=30, help="Number of dummy samples to generate per dataset")
     
-    parser.add_argument("--image_arch", type=str, default="efficientnet_b0", choices=["efficientnet_b0", "efficientnet_b4", "convnext_tiny", "convnext_base"], help="Target image model architecture")
+    parser.add_argument("--image_arch", type=str, default="convnext_tiny", choices=["efficientnet_b0", "efficientnet_b4", "convnext_tiny", "convnext_base"], help="Target image model architecture")
     parser.add_argument("--audio_arch", type=str, default="resnet18", choices=["resnet18"], help="Target audio model architecture")
     parser.add_argument("--force_fallback", action="store_true", help="Force fallback to Mini-architectures")
     parser.add_argument("--weighted_sampling", action="store_true", default=True, help="Use WeightedRandomSampler to balance classes")

@@ -149,8 +149,28 @@ async def detect_upload(
         c2pa_status = c2pa_manager.verify_credentials(file_path)
         report["c2pa_credentials"] = c2pa_status
         
-        # Increment metrics
-        verdict = "fake" if report["fused_confidence"] > 0.5 else "authentic"
+        # 5. Hard Negative Mining
+        fused_confidence = report["fused_confidence"]
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        hard_negatives_root = os.path.join(project_root, "hard_negatives")
+        if is_synthetic and fused_confidence < 0.5:
+            target_dir = os.path.join(hard_negatives_root, "false_real")
+            os.makedirs(target_dir, exist_ok=True)
+            shutil.copy2(file_path, os.path.join(target_dir, file.filename))
+            print(f"[Hard Negative] Saved False Real sample to {target_dir}/{file.filename}")
+        elif not is_synthetic and fused_confidence > 0.5:
+            target_dir = os.path.join(hard_negatives_root, "false_fake")
+            os.makedirs(target_dir, exist_ok=True)
+            shutil.copy2(file_path, os.path.join(target_dir, file.filename))
+            print(f"[Hard Negative] Saved False Fake sample to {target_dir}/{file.filename}")
+            
+        # Increment metrics based on confidence zones
+        if fused_confidence <= 0.35:
+            verdict = "authentic"
+        elif fused_confidence <= 0.65:
+            verdict = "uncertain"
+        else:
+            verdict = "fake"
         THROUGHPUT.labels(detector="BayesianEnsemble", result_verdict=verdict).inc()
         
         return report

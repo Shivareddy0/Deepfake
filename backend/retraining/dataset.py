@@ -74,6 +74,14 @@ class RandomCropAugment:
             return cv2.resize(crop, self.target_size)
         return img_np
 
+class HorizontalFlipAugment:
+    def __init__(self, p=0.5):
+        self.p = p
+    def __call__(self, img_np):
+        if np.random.rand() > self.p:
+            return img_np
+        return cv2.flip(img_np, 1)
+
 # ==========================================================
 #                   DATASET IMPLEMENTATIONS
 # ==========================================================
@@ -95,57 +103,127 @@ class DeepfakeImageDataset(Dataset):
             BrightnessShiftAugment(p=0.4),
             ResizeCompressionAugment(p=0.3),
             GaussianBlurAugment(p=0.3),
-            JPEGCompressionAugment(p=0.4)
+            JPEGCompressionAugment(p=0.4),
+            HorizontalFlipAugment(p=0.5)
         ]
 
         if is_dummy:
             self._create_dummy_image_dataset(num_dummy_samples)
         else:
             if not os.path.exists(root_dir):
-                print(f"[!] Warning: Image dataset root '{root_dir}' not found. Switching to dummy generator.")
-                self.is_dummy = True
-                self._create_dummy_image_dataset(num_dummy_samples)
+                raise ValueError(f"Image dataset root '{root_dir}' not found. Production training requires real datasets.")
             else:
                 self._load_multi_datasets()
 
     def _load_multi_datasets(self):
-        # We search for subdirectories corresponding to the 5 datasets:
-        # CIFAKE, FaceForensics++, Celeb-DF, DFDC, DiffusionDB
-        supported_datasets = ["cifake", "faceforensics", "celeb-df", "celebdf", "dfdc", "diffusiondb"]
+        # The expected structure under data/images:
+        # data/images/
+        # ├── cifake/ (REAL, FAKE)
+        # ├── diffusiondb/ (REAL, FAKE)
+        # ├── faceforensics/ (real, fake)
+        # ├── celeb-df/ (bonafide, spoof)
+        # └── dfdc/ (real, fake)
         
-        # Check if the root dir contains any subdirs matching the supported names
-        subdirs = [d for d in os.listdir(self.root_dir) if os.path.isdir(os.path.join(self.root_dir, d))]
-        active_dataset_dirs = [os.path.join(self.root_dir, s) for s in subdirs if s.lower() in supported_datasets]
-
-        # If no explicit subfolders are found, we check if the root folder is a single dataset directly
-        if not active_dataset_dirs:
-            active_dataset_dirs = [self.root_dir]
-
-        print(f"[*] Scanning directories: {active_dataset_dirs}")
-
-        for dataset_path in active_dataset_dirs:
-            # Recursively scan for REAL / FAKE or bonafide / spoof folders
-            for label, categories in enumerate([["REAL", "bonafide", "real"], ["FAKE", "spoof", "fake"]]):
-                for cat in categories:
-                    cat_dir = os.path.join(dataset_path, cat)
-                    if not os.path.exists(cat_dir):
-                        # Try case insensitive search
-                        for d in os.listdir(dataset_path):
-                            if d.lower() == cat.lower() and os.path.isdir(os.path.join(dataset_path, d)):
-                                cat_dir = os.path.join(dataset_path, d)
-                                break
+        dataset_specs = {
+            "cifake": {"real": ["REAL", "real"], "fake": ["FAKE", "fake"]},
+            "diffusiondb": {"real": ["REAL", "real"], "fake": ["FAKE", "fake"]},
+            "faceforensics": {"real": ["real", "REAL"], "fake": ["fake", "FAKE"]},
+            "celeb-df": {"real": ["bonafide"], "fake": ["spoof"]},
+            "dfdc": {"real": ["real", "REAL"], "fake": ["fake", "FAKE"]}
+        }
+        
+        loaded_count = {}
+        
+        if os.path.exists(self.root_dir):
+            for name, spec in dataset_specs.items():
+                dataset_path = os.path.join(self.root_dir, name)
+                if not os.path.exists(dataset_path):
+                    # Try finding case-insensitive match
+                    for entry in os.listdir(self.root_dir):
+                        if entry.lower() == name.lower() and os.path.isdir(os.path.join(self.root_dir, entry)):
+                            dataset_path = os.path.join(self.root_dir, entry)
+                            break
+                            
+                if os.path.exists(dataset_path) and os.path.isdir(dataset_path):
+                    loaded_count[name] = 0
                     
-                    if os.path.exists(cat_dir) and os.path.isdir(cat_dir):
-                        for root, _, files in os.walk(cat_dir):
+                    # Scan for Real
+                    real_dir = None
+                    for cat in spec["real"]:
+                        tmp_dir = os.path.join(dataset_path, cat)
+                        if not os.path.exists(tmp_dir):
+                            for entry in os.listdir(dataset_path):
+                                if entry.lower() == cat.lower() and os.path.isdir(os.path.join(dataset_path, entry)):
+                                    tmp_dir = os.path.join(dataset_path, entry)
+                                    break
+                        if os.path.exists(tmp_dir) and os.path.isdir(tmp_dir):
+                            real_dir = tmp_dir
+                            break
+                            
+                    if real_dir:
+                        for root, _, files in os.walk(real_dir):
                             for filename in files:
                                 if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
-                                    self.samples.append((os.path.join(root, filename), float(label)))
+                                    self.samples.append((os.path.join(root, filename), 0.0))
+                                    loaded_count[name] += 1
+                                    
+                    # Scan for Fake
+                    fake_dir = None
+                    for cat in spec["fake"]:
+                        tmp_dir = os.path.join(dataset_path, cat)
+                        if not os.path.exists(tmp_dir):
+                            for entry in os.listdir(dataset_path):
+                                if entry.lower() == cat.lower() and os.path.isdir(os.path.join(dataset_path, entry)):
+                                    tmp_dir = os.path.join(dataset_path, entry)
+                                    break
+                        if os.path.exists(tmp_dir) and os.path.isdir(tmp_dir):
+                            fake_dir = tmp_dir
+                            break
+                            
+                    if fake_dir:
+                        for root, _, files in os.walk(fake_dir):
+                            for filename in files:
+                                if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
+                                    self.samples.append((os.path.join(root, filename), 1.0))
+                                    loaded_count[name] += 1
 
+        # Load hard negatives from project root
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        hard_negatives_root = os.path.join(project_root, "hard_negatives")
+        hard_neg_count = 0
+        if os.path.exists(hard_negatives_root):
+            false_real_dir = os.path.join(hard_negatives_root, "false_real")
+            if os.path.exists(false_real_dir):
+                for root, _, files in os.walk(false_real_dir):
+                    for filename in files:
+                        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
+                            self.samples.append((os.path.join(root, filename), 1.0))
+                            hard_neg_count += 1
+            false_fake_dir = os.path.join(hard_negatives_root, "false_fake")
+            if os.path.exists(false_fake_dir):
+                for root, _, files in os.walk(false_fake_dir):
+                    for filename in files:
+                        if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
+                            self.samples.append((os.path.join(root, filename), 0.0))
+                            hard_neg_count += 1
+
+        print(f"[+] Loaded dataset statistics:")
+        for name, count in loaded_count.items():
+            print(f"    - {name}: {count} samples")
+        if hard_neg_count > 0:
+            print(f"    - Hard Negatives: {hard_neg_count} samples")
+            
         print(f"[+] Loaded {len(self.samples)} total samples from active image datasets.")
+        
         if not self.samples:
-            print("[!] Warning: No images found. Switching to dummy generator.")
-            self.is_dummy = True
-            self._create_dummy_image_dataset(50)
+            if self.is_dummy:
+                self._create_dummy_image_dataset(50)
+            else:
+                raise ValueError(
+                    f"No images found in {self.root_dir} or hard_negatives/. "
+                    "Production training requires a real dataset. "
+                    "Please check your dataset paths."
+                )
 
     def _create_dummy_image_dataset(self, num_samples):
         print(f"[+] Generating {num_samples} in-memory simulated image samples...")
@@ -158,7 +236,7 @@ class DeepfakeImageDataset(Dataset):
                 img = cv2.addWeighted(img, 0.5, noise, 0.5, 0)
                 cv2.line(img, (10, 10), (240, 240), (255, 255, 255), 1)
             else:
-                # FAKE image: smooth skin texture + boundary blending discrepency
+                # FAKE image: smooth skin texture + boundary blending discrepancy
                 smooth = np.random.normal(127, 5, (256, 256, 3)).astype(np.uint8)
                 img = cv2.addWeighted(img, 0.9, smooth, 0.1, 0)
                 img = cv2.GaussianBlur(img, (7, 7), 0)

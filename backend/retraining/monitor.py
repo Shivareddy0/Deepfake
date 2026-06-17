@@ -60,9 +60,26 @@ class ModelRegistryMonitor:
         Evaluate detector metrics against evaluation set.
         Generates simulated verification feedback, matching typical evaluation trends.
         """
+        # Check if dummy
+        is_dummy_eval = any(s.get("dummy", False) for s in test_samples) if test_samples else False
+        total = len(test_samples) if test_samples else 100
+
+        if is_dummy_eval:
+            print("[*] ModelRegistryMonitor: Dummy evaluation detected. Skipping registry updates and performance claims.")
+            return {
+                "performance": {
+                    "accuracy": "N/A (Dummy)",
+                    "auc": "N/A (Dummy)",
+                    "fpr": "N/A (Dummy)",
+                    "timestamp": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    "samples_evaluated": total
+                },
+                "trigger_retrain": False,
+                "reasons": []
+            }
+
         # If no samples, evaluate mock metrics
         correct = 0
-        total = len(test_samples) if test_samples else 100
         
         # Simulating metrics based on typical noise and drift
         base_accuracy = 0.94

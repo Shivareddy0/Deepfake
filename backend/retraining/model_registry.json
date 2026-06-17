@@ -22,7 +22,7 @@
             ]
         },
         "SpatialCNNDetector": {
-            "active_version": "v4.4.0",
+            "active_version": "v4.5.0",
             "history": [
                 {
                     "version": "v4.2.0",
@@ -45,8 +45,21 @@
                     "accuracy": 0.9304606907452887,
                     "auc": 0.9437137696283224,
                     "fpr": 0.022354218769102194,
-                    "status": "active",
+                    "status": "retired",
                     "timestamp": "2026-06-16T19:19:39Z",
+                    "training_config": {
+                        "adversarial_augmentation": "PGD-10",
+                        "precision": "mixed-fp16",
+                        "dataset_version": "2026.06.12-adv"
+                    }
+                },
+                {
+                    "version": "v4.5.0",
+                    "accuracy": 0.9373297020111528,
+                    "auc": 0.9645525675250188,
+                    "fpr": 0.0026833285966826464,
+                    "status": "active",
+                    "timestamp": "2026-06-17T03:39:07Z",
                     "training_config": {
                         "adversarial_augmentation": "PGD-10",
                         "precision": "mixed-fp16",
@@ -106,6 +119,17 @@
             "timestamp": "2026-06-16T19:19:39Z",
             "status": "Triggered retraining",
             "target_version": "v4.4.0"
+        },
+        {
+            "detector": "SpatialCNNDetector",
+            "reasons": [
+                "Accuracy 0.875 fell below threshold (0.90)",
+                "AUC 0.886 fell below threshold (0.92)",
+                "FPR 0.078 exceeded tolerance (0.05)"
+            ],
+            "timestamp": "2026-06-17T03:39:07Z",
+            "status": "Triggered retraining",
+            "target_version": "v4.5.0"
         }
     ]
 }

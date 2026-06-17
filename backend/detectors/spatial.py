@@ -369,9 +369,9 @@ class SpatialDetector(BaseDetector):
 
         # Standardize explanations
         prefix = f"[{self.pretrained_info}] "
-        if confidence_val > 0.75:
+        if confidence_val > 0.65:
             explanation = prefix + "Spatial CNN detected high-frequency boundary artifacts and blending inconsistencies, specifically around the eyes and mouth regions."
-        elif confidence_val > 0.4:
+        elif confidence_val > 0.35:
             explanation = prefix + "Minor structural artifacts detected. Blurring or low-quality compression detected but identity lines remain cohesive."
         else:
             explanation = prefix + "Image spatial patterns are highly coherent with typical photographic sensors; no structural anomalies detected."
